@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, Text
 from database import Base
 
 
@@ -42,3 +42,21 @@ class Place(Base):
     cpyrhtDivCd   = Column(String)
     createdtime   = Column(String)
     modifiedtime  = Column(String)
+
+
+COMMUNITY_CATEGORIES = {
+    "전체", "관광지", "레포츠", "문화시설", "쇼핑", "숙박", "여행코스", "축제공연행사"
+}
+
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    category   = Column(String, nullable=False, index=True)
+    title      = Column(String, nullable=False)
+    content    = Column(Text, nullable=False)
+    nickname   = Column(String, nullable=False)
+    password   = Column(String, nullable=False)
+    created_at = Column(String, nullable=False)
+    updated_at = Column(String, nullable=False)
