@@ -62,6 +62,44 @@ def list_places(
     }
 
 
+@router.get("/map")
+def map_places(
+    category: str = Query(description="카테고리 (예: 관광지, 숙박) — 필수"),
+    db: Session = Depends(get_db),
+):
+    type_id = LABEL_TO_TYPE_ID.get(category)
+    if not type_id:
+        raise HTTPException(status_code=400, detail=f"유효하지 않은 카테고리입니다: {category}")
+
+    rows = (
+        db.query(
+            Place.contentid,
+            Place.title,
+            Place.addr1,
+            Place.addr2,
+            Place.mapx,
+            Place.mapy,
+        )
+        .filter(
+            Place.contenttypeid == type_id,
+            Place.mapx.isnot(None),
+            Place.mapy.isnot(None),
+        )
+        .all()
+    )
+
+    return [
+        {
+            "contentid": r.contentid,
+            "title":     r.title,
+            "addr":      " ".join(filter(None, [r.addr1, r.addr2])),
+            "mapx":      r.mapx,
+            "mapy":      r.mapy,
+        }
+        for r in rows
+    ]
+
+
 @router.get("/{contentid}")
 def get_place(contentid: str, db: Session = Depends(get_db)):
     place = db.query(Place).filter(Place.contentid == contentid).first()
