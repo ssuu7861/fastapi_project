@@ -3,7 +3,7 @@ from pathlib import Path
 from database import engine, Base, SessionLocal
 from models import Place
 
-DATA_DIR = Path("D:/data/서울")
+DATA_DIR = Path(__file__).parent / "data" / "서울"
 
 FILES = [
     "서울_관광지.json",
