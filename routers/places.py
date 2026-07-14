@@ -3,13 +3,15 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Place, CONTENT_TYPE_LABEL
+from schemas import PlaceResponse, PlaceListResponse, MapPlaceResponse
 
-router = APIRouter(prefix="/api/places", tags=["places"])
+router = APIRouter(prefix="/api/places", tags=["지역정보 · 지도"])
 
 PAGE_SIZE = 20
 
-# 한국어 카테고리명 → contenttypeid 역매핑
 LABEL_TO_TYPE_ID = {v: k for k, v in CONTENT_TYPE_LABEL.items()}
+
+CATEGORY_DESC = "관광지, 레포츠, 문화시설, 쇼핑, 숙박, 여행코스, 축제공연행사"
 
 
 def serialize(place: Place) -> dict:
@@ -28,23 +30,32 @@ def serialize(place: Place) -> dict:
     }
 
 
-@router.get("")
+@router.get(
+    "",
+    response_model=PlaceListResponse,
+    summary="지역정보 목록 조회",
+    description=(
+        "카테고리 필터와 키워드 검색을 조합해 장소 목록을 반환합니다. "
+        "20개씩 페이징됩니다.\n\n"
+        f"**카테고리 목록:** {CATEGORY_DESC}\n\n"
+        "**keyword:** 장소명(title) 또는 주소(addr1) 부분 일치 검색"
+    ),
+    responses={400: {"description": "유효하지 않은 카테고리"}},
+)
 def list_places(
-    category: str = Query(default=None, description="카테고리 (예: 관광지, 숙박)"),
-    keyword:  str = Query(default=None, description="장소명 또는 주소 검색어"),
-    page:     int = Query(default=1, ge=1),
+    category: str = Query(default=None, description=f"카테고리 ({CATEGORY_DESC})"),
+    keyword:  str = Query(default=None, description="장소명 또는 주소 검색어 (부분 일치)"),
+    page:     int = Query(default=1, ge=1, description="페이지 번호"),
     db: Session = Depends(get_db),
 ):
     query = db.query(Place)
 
-    # 카테고리 필터
     if category:
         type_id = LABEL_TO_TYPE_ID.get(category)
         if not type_id:
             raise HTTPException(status_code=400, detail=f"유효하지 않은 카테고리입니다: {category}")
         query = query.filter(Place.contenttypeid == type_id)
 
-    # 장소명 또는 주소 검색 (OR 조건)
     if keyword:
         query = query.filter(
             Place.title.like(f"%{keyword}%") |
@@ -62,9 +73,23 @@ def list_places(
     }
 
 
-@router.get("/map")
+@router.get(
+    "/map",
+    response_model=list[MapPlaceResponse],
+    summary="지도용 위치 데이터 조회",
+    description=(
+        "선택한 카테고리의 모든 장소에 대해 지도 마커 렌더링에 필요한 "
+        "최소 데이터(제목, 주소, 좌표)를 반환합니다. 페이징 없이 전체를 반환합니다.\n\n"
+        f"**카테고리 목록:** {CATEGORY_DESC}\n\n"
+        "※ '전체' 카테고리는 지원하지 않습니다. 카테고리를 반드시 지정해야 합니다."
+    ),
+    responses={
+        400: {"description": "유효하지 않은 카테고리"},
+        422: {"description": "카테고리 파라미터 누락"},
+    },
+)
 def map_places(
-    category: str = Query(description="카테고리 (예: 관광지, 숙박) — 필수"),
+    category: str = Query(description=f"카테고리 (필수) — {CATEGORY_DESC}"),
     db: Session = Depends(get_db),
 ):
     type_id = LABEL_TO_TYPE_ID.get(category)
@@ -100,7 +125,13 @@ def map_places(
     ]
 
 
-@router.get("/{contentid}")
+@router.get(
+    "/{contentid}",
+    response_model=PlaceResponse,
+    summary="장소 단건 조회",
+    description="contentid로 장소 정보를 조회합니다.",
+    responses={404: {"description": "장소 없음"}},
+)
 def get_place(contentid: str, db: Session = Depends(get_db)):
     place = db.query(Place).filter(Place.contentid == contentid).first()
     if not place:
