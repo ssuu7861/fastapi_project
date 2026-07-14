@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base
-from routers import community
+from routers import community, places
 
 Base.metadata.create_all(bind=engine)
 
@@ -16,3 +16,4 @@ app.add_middleware(
 )
 
 app.include_router(community.router)
+app.include_router(places.router)
