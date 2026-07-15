@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from database import get_db
-from models import Post, COMMUNITY_CATEGORIES
+from models import Comment, Post, COMMUNITY_CATEGORIES
 from schemas import (
-    PostCreate, PostUpdate, PasswordBody,
+    CommentCreate, CommentListResponse, CommentResponse, CommentUpdate, PostCreate, PostDetailResponse, PostUpdate, PasswordBody,
     PostResponse, PostListResponse, MessageResponse,
 )
 
@@ -18,7 +18,7 @@ def now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def serialize(post: Post) -> dict:
+def serialize_Post(post: Post) -> dict:
     return {
         "id":         post.id,
         "category":   post.category,
@@ -29,6 +29,13 @@ def serialize(post: Post) -> dict:
         "updated_at": post.updated_at,
     }
 
+def serialize_comment(comment: Comment) -> dict:
+    return {
+        "id":       comment.id,
+        "post_id":  comment.post_id,
+        "content":  comment.content,
+        "nickname": comment.nickname,
+    }
 
 @router.get(
     "/recent",
@@ -38,7 +45,7 @@ def serialize(post: Post) -> dict:
 )
 def get_recent_posts(db: Session = Depends(get_db)):
     posts = db.query(Post).order_by(Post.id.desc()).limit(5).all()
-    return [serialize(p) for p in posts]
+    return [serialize_Post(p) for p in posts]
 
 
 @router.get(
@@ -72,13 +79,13 @@ def list_posts(
         "total":     total,
         "page":      page,
         "page_size": PAGE_SIZE,
-        "items":     [serialize(p) for p in posts],
+        "items":     [serialize_Post(p) for p in posts],
     }
 
 
 @router.get(
     "/{post_id}",
-    response_model=PostResponse,
+    response_model=PostDetailResponse,
     summary="게시글 단건 조회",
     description="게시글 ID로 단건을 조회합니다.",
     responses={404: {"description": "게시글 없음"}},
@@ -87,7 +94,10 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
     post = db.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
-    return serialize(post)
+    return {
+        **serialize_Post(post),
+        "comments": [serialize_comment(comment) for comment in post.comments],
+    }
 
 
 @router.post(
@@ -98,8 +108,6 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
     description=(
         "새 게시글을 작성합니다. "
         "수정·삭제 시 필요한 비밀번호를 함께 등록합니다. "
-        "비밀번호는 평문으로 저장됩니다.\n\n"
-        "**카테고리 목록:** 전체, 관광지, 레포츠, 문화시설, 쇼핑, 숙박, 여행코스, 축제공연행사"
     ),
     responses={400: {"description": "유효하지 않은 카테고리"}},
 )
@@ -120,7 +128,7 @@ def create_post(body: PostCreate, db: Session = Depends(get_db)):
     db.add(post)
     db.commit()
     db.refresh(post)
-    return serialize(post)
+    return serialize_Post(post)
 
 
 @router.put(
@@ -145,7 +153,7 @@ def update_post(post_id: int, body: PostUpdate, db: Session = Depends(get_db)):
     post.updated_at = now_str()
     db.commit()
     db.refresh(post)
-    return serialize(post)
+    return serialize_Post(post)
 
 
 @router.delete(
@@ -166,5 +174,101 @@ def delete_post(post_id: int, body: PasswordBody, db: Session = Depends(get_db))
         raise HTTPException(status_code=403, detail="비밀번호가 일치하지 않습니다.")
 
     db.delete(post)
+    db.commit()
+    return {"message": "삭제되었습니다."}
+
+
+
+@router.get(
+    "/{post_id}/comments",
+    response_model=CommentListResponse,
+    summary="댓글 목록 조회",
+    description="특정 게시글의 댓글을 순서대로 반환합니다.",
+    responses={404: {"description": "게시글 없음"}},
+)
+def list_comments(post_id: int, db: Session = Depends(get_db)):
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+
+    comments = (
+        db.query(Comment)
+        .filter(Comment.post_id == post_id)
+        .order_by(Comment.id.asc())
+        .all()
+    )
+
+    return {
+        "total": len(comments),
+        "items": [serialize_comment(comment) for comment in comments],
+    }
+
+
+@router.post(
+    "/{post_id}/comments",
+    response_model=CommentResponse,
+    status_code=201,
+    summary="댓글 작성",
+    description="특정 게시글에 댓글을 작성합니다.",
+    responses={404: {"description": "게시글 없음"}},
+)
+def create_comment(post_id: int, body: CommentCreate, db: Session = Depends(get_db)):
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+
+    comment = Comment(
+        post_id=post_id,
+        content=body.content,
+        nickname=body.nickname,
+        password=body.password,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return serialize_comment(comment)
+
+
+@router.put(
+    "/comments/{comment_id}",
+    response_model=CommentResponse,
+    summary="댓글 수정",
+    description="비밀번호가 일치하는 경우에만 댓글 내용을 수정합니다.",
+    responses={
+        403: {"description": "비밀번호 불일치"},
+        404: {"description": "댓글 없음"},
+    },
+)
+def update_comment(comment_id: int, body: CommentUpdate, db: Session = Depends(get_db)):
+    comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+    if comment.password != body.password:
+        raise HTTPException(status_code=403, detail="비밀번호가 일치하지 않습니다.")
+
+    comment.content = body.content
+    db.commit()
+    db.refresh(comment)
+    return serialize_comment(comment)
+
+
+@router.delete(
+    "/comments/{comment_id}",
+    response_model=MessageResponse,
+    summary="댓글 삭제",
+    description="비밀번호가 일치하는 경우에만 댓글을 삭제합니다.",
+    responses={
+        403: {"description": "비밀번호 불일치"},
+        404: {"description": "댓글 없음"},
+    },
+)
+def delete_comment(comment_id: int, body: PasswordBody, db: Session = Depends(get_db)):
+    comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+    if comment.password != body.password:
+        raise HTTPException(status_code=403, detail="비밀번호가 일치하지 않습니다.")
+
+    db.delete(comment)
     db.commit()
     return {"message": "삭제되었습니다."}

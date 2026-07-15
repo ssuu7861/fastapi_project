@@ -38,6 +38,36 @@ class PostListResponse(BaseModel):
     items:     list[PostResponse]
 
 
+# 댓글
+
+class CommentCreate(BaseModel):
+    nickname: str = Field(example="댓글러")
+    content:  str = Field(example="좋은 정보 감사합니다.")
+    password: str = Field(example="1234")
+
+
+class CommentUpdate(BaseModel):
+    content:  str = Field(example="내용을 조금 수정합니다.")
+    password: str = Field(example="1234")
+
+
+class CommentResponse(BaseModel):
+    id:         int  = Field(example=1)
+    post_id:    int  = Field(example=1)
+    content:    str  = Field(example="좋은 정보 감사합니다.")
+    nickname:   str  = Field(example="댓글러")
+
+
+
+
+class CommentListResponse(BaseModel):
+    total:     int              = Field(example=3)
+    items:     list[CommentResponse]
+
+
+class PostDetailResponse(PostResponse):
+    comments: list[CommentResponse] = Field(default_factory=list)
+
 # 지역정보
 
 class PlaceResponse(BaseModel):

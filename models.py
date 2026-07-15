@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, Text
+from sqlalchemy import Column, ForeignKey, Integer, String, Float, Text
+from sqlalchemy.orm import relationship
 from database import Base
 
 
@@ -60,3 +61,22 @@ class Post(Base):
     password   = Column(String, nullable=False)
     created_at = Column(String, nullable=False)
     updated_at = Column(String, nullable=False)
+
+    comments = relationship(
+        "Comment",
+        back_populates="post",
+        cascade="all, delete-orphan",
+        order_by="Comment.id.asc()",
+    )
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    post_id    = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    content    = Column(Text, nullable=False)
+    nickname   = Column(String, nullable=False)
+    password   = Column(String, nullable=False)
+
+
+    post = relationship("Post", back_populates="comments")
