@@ -1,9 +1,11 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Place, CONTENT_TYPE_LABEL
-from schemas import PlaceResponse, PlaceListResponse, MapPlaceResponse
+from models import FestivalDetail, Place, CONTENT_TYPE_LABEL
+from schemas import PlaceDetailResponse, PlaceResponse, PlaceListResponse, MapPlaceResponse, WeeklyFestivalResponse
 
 router = APIRouter(prefix="/api/places", tags=["지역정보 · 지도"])
 
@@ -29,6 +31,35 @@ def serialize(place: Place) -> dict:
         "mapy":          place.mapy,
     }
 
+def serialize_festival_detail(detail: FestivalDetail | None) -> dict | None:
+    if not detail:
+        return None
+    return {
+        "eventstartdate":       detail.eventstartdate,
+        "eventenddate":         detail.eventenddate,
+        "eventplace":           detail.eventplace,
+        "playtime":             detail.playtime,
+        "program":              detail.program,
+        "subevent":             detail.subevent,
+        "sponsor1":             detail.sponsor1,
+        "sponsor1tel":          detail.sponsor1tel,
+        "sponsor2":             detail.sponsor2,
+        "sponsor2tel":          detail.sponsor2tel,
+        "eventhomepage":        detail.eventhomepage,
+        "bookingplace":         detail.bookingplace,
+        "agelimit":             detail.agelimit,
+        "festivalgrade":        detail.festivalgrade,
+        "placeinfo":            detail.placeinfo,
+        "spendtimefestival":    detail.spendtimefestival,
+        "discountinfofestival": detail.discountinfofestival,
+        "usetimefestival":      detail.usetimefestival,
+    }
+
+def current_week_range() -> tuple[str, str]:
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    return monday.strftime("%Y%m%d"), sunday.strftime("%Y%m%d")
 
 @router.get(
     "",
@@ -124,16 +155,67 @@ def map_places(
         for r in rows
     ]
 
+@router.get(
+    "/festivals/this-week",
+    response_model=WeeklyFestivalResponse,
+    summary="이번 주 축제공연행사 조회",
+    description="이번 주(월요일~일요일) 기간과 겹치는 축제공연행사를 반환합니다.",
+)
+def this_week_festivals(db: Session = Depends(get_db)):
+    week_start, week_end = current_week_range()
+
+    rows = (
+        db.query(Place, FestivalDetail)
+        .join(FestivalDetail, FestivalDetail.place_id == Place.id)
+        .filter(
+            Place.contenttypeid == "15",
+            FestivalDetail.eventstartdate.isnot(None),
+            FestivalDetail.eventenddate.isnot(None),
+            FestivalDetail.eventstartdate <= week_end,
+            FestivalDetail.eventenddate >= week_start,
+        )
+        .order_by(FestivalDetail.eventstartdate.asc(), Place.title.asc())
+        .all()
+    )
+
+    items = []
+    for place, detail in rows:
+        items.append(
+            {
+                "contentid": place.contentid,
+                "title": place.title,
+                "addr": " ".join(filter(None, [place.addr1, place.addr2])),
+                "mapx": place.mapx,
+                "mapy": place.mapy,
+                "eventstartdate": detail.eventstartdate,
+                "eventenddate": detail.eventenddate,
+                "eventplace": detail.eventplace,
+                "usetimefestival": detail.usetimefestival,
+                "agelimit": detail.agelimit,
+            }
+        )
+
+    return {
+        "week_start": week_start,
+        "week_end": week_end,
+        "total": len(items),
+        "items": items,
+    }
+
 
 @router.get(
     "/{contentid}",
-    response_model=PlaceResponse,
+    response_model=PlaceDetailResponse,
     summary="장소 단건 조회",
-    description="contentid로 장소 정보를 조회합니다.",
+    description="contentid로 장소 정보를 조회합니다. 축제공연행사인 경우 축제 상세도 함께 반환합니다.",
     responses={404: {"description": "장소 없음"}},
 )
 def get_place(contentid: str, db: Session = Depends(get_db)):
     place = db.query(Place).filter(Place.contentid == contentid).first()
     if not place:
         raise HTTPException(status_code=404, detail="장소를 찾을 수 없습니다.")
-    return serialize(place)
+
+    return {
+        **serialize(place),
+        "festival_detail": serialize_festival_detail(place.festival_detail),
+    }

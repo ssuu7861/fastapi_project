@@ -44,7 +44,41 @@ class Place(Base):
     createdtime   = Column(String)
     modifiedtime  = Column(String)
 
+    festival_detail = relationship(
+        "FestivalDetail",
+        back_populates="place",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
+
+class FestivalDetail(Base):
+    __tablename__ = "festival_details"
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    place_id             = Column(Integer, ForeignKey("places.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    eventstartdate       = Column(String)
+    eventenddate         = Column(String)
+    eventplace           = Column(String)
+    playtime             = Column(Text)
+    program              = Column(Text)
+    subevent             = Column(Text)
+    sponsor1             = Column(String)
+    sponsor1tel          = Column(String)
+    sponsor2             = Column(String)
+    sponsor2tel          = Column(String)
+    eventhomepage        = Column(String)
+    bookingplace         = Column(String)
+    agelimit             = Column(String)
+    festivalgrade        = Column(String)
+    placeinfo            = Column(Text)
+    spendtimefestival    = Column(String)
+    discountinfofestival = Column(String)
+    usetimefestival      = Column(String)
+
+    place = relationship("Place", back_populates="festival_detail")
+
+    
 COMMUNITY_CATEGORIES = {
     "전체", "관광지", "레포츠", "문화시설", "쇼핑", "숙박", "여행코스", "축제공연행사"
 }

@@ -84,6 +84,50 @@ class PlaceResponse(BaseModel):
     mapy:          float | None = Field(example=37.5382)
 
 
+class FestivalDetailResponse(BaseModel):
+    eventstartdate:       str | None = Field(example="20260916")
+    eventenddate:         str | None = Field(example="20260920")
+    eventplace:           str | None = Field(example="마로니에 공원")
+    playtime:             str | None = Field(example="프로그램 별 상이함")
+    program:              str | None = Field(example="개막식, 북토크, 워크숍 등")
+    subevent:             str | None = Field(example="")
+    sponsor1:             str | None = Field(example="한국문화예술위원회")
+    sponsor1tel:          str | None = Field(example="070-7954-1369")
+    sponsor2:             str | None = Field(example="한국문화예술위원회")
+    sponsor2tel:          str | None = Field(example="")
+    eventhomepage:        str | None = Field(example="")
+    bookingplace:         str | None = Field(example="")
+    agelimit:             str | None = Field(example="전 연령")
+    festivalgrade:        str | None = Field(example="")
+    placeinfo:            str | None = Field(example="")
+    spendtimefestival:    str | None = Field(example="")
+    discountinfofestival: str | None = Field(example="")
+    usetimefestival:      str | None = Field(example="무료")
+
+class WeeklyFestivalItemResponse(BaseModel):
+    contentid:       str = Field(example="2751541")
+    title:           str = Field(example="문학주간 2026")
+    addr:            str = Field(example="서울특별시 종로구 동숭길 3")
+    mapx:            float | None = Field(example=127.0043)
+    mapy:            float | None = Field(example=37.5805)
+    eventstartdate:  str | None = Field(example="20260916")
+    eventenddate:    str | None = Field(example="20260920")
+    eventplace:      str | None = Field(example="마로니에 공원")
+    usetimefestival: str | None = Field(example="무료")
+    agelimit:        str | None = Field(example="전 연령")
+
+
+class WeeklyFestivalResponse(BaseModel):
+    week_start: str = Field(example="20260914")
+    week_end:   str = Field(example="20260920")
+    total:      int = Field(example=12)
+    items:      list[WeeklyFestivalItemResponse]
+
+
+class PlaceDetailResponse(PlaceResponse):
+    festival_detail: FestivalDetailResponse | None = None
+
+
 class PlaceListResponse(BaseModel):
     total:     int            = Field(example=783)
     page:      int            = Field(example=1)
