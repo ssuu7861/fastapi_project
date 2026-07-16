@@ -2,8 +2,8 @@ services:
   - type: web
     name: fastapi-project
     env: python
-    buildCommand: pip install -r requirements.txt && python seed.py
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt
+    startCommand: python seed.py && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
